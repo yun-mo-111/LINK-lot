@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>桥梁健康监测BIM可视化系统</title>
+    <!-- ECharts 图表库 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            background: #0a1a2f;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        /* 顶部导航 */
+        .top-header {
+            height: 60px;
+            background: linear-gradient(90deg, #0a1a2f 0%, #1a3a5f 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-bottom: 1px solid #2a4a6f;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            padding: 8px 24px;
+            background: #1a3a5f;
+            border: 1px solid #2a4a6f;
+            color: #8ab4f8;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: #2a4a6f;
+            color: #fff;
+            border-bottom: 1px solid #0a1a2f;
+        }
+
+        .env-info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .env-item {
+            color: #8ab4f8;
+            font-size: 14px;
+        }
+
+        .env-value {
+            color: #4fc3f7;
+            margin-left: 4px;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            height: calc(100vh - 60px);
+            position: relative;
+        }
+
+        /* 3D桥梁容器 */
+        .bridge-3d-container {
+            background: url('https://picsum.photos/1600/900') center/cover no-repeat;
+            position: relative;
+        }
+
+        .loading-mask {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #4fc3f7;
+            font-size: 18px;
+        }
+
+        /* 左右面板 */
+        .left-panel, .right-panel {
+            background: rgba(10, 26, 47, 0.85);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .panel-content {
+            display: none;
+        }
+
+        .panel-content.active {
+            display: block;
+        }
+
+        .panel-section {
+            margin-bottom: 24px;
+            background: rgba(26, 58, 95, 0.6);
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #2a4a6f;
+        }
+
+        .section-title {
+            color: #4fc3f7;
+            margin-bottom: 12px;
+            font-size: 16px;
+            border-left: 3px solid #4fc3f7;
+            padding-left: 8px;
+        }
+
+        .info-list p {
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #c9d1d9;
+        }
+
+        .info-list span {
+            color: #8ab4f8;
+        }
+
+        /* 图表容器 */
+        .radar-chart-container,
+        .line-chart-container,
+        .triangle-chart-container,
+        .bar-chart-container,
+        .sensor-chart-container {
+            width: 100%;
+            height: 200px;
+        }
+
+        /* 搜索框 */
+        .search-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 8px 12px;
+            background: #1a3a5f;
+            border: 1px solid #2a4a6f;
+            border-radius: 4px;
+            color: #fff;
+        }
+
+        .search-btn {
+            padding: 8px 16px;
+            background: #2a4a6f;
+            border: 1px solid #4fc3f7;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        /* 构件树 */
+        .component-tree {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .tree-item {
+            padding: 8px 12px;
+            background: #1a3a5f;
+            border: 1px solid #2a4a6f;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tree-item:hover {
+            background: #2a4a6f;
+            border-color: #4fc3f7;
+        }
+
+        .tree-item.active {
+            background: #2a4a6f;
+            border-color: #4fc3f7;
+            color: #4fc3f7;
+        }
+
+        /* 构件详情 */
+        .component-detail {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1a3a5f;
+            border: 1px solid #4fc3f7;
+            border-radius: 8px;
+            padding: 20px;
+            width: 500px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .close-detail {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .detail-content p {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .view-drawing-btn {
+            margin-top: 16px;
+            padding: 8px 24px;
+            background: #4fc3f7;
+            border: none;
+            border-radius: 4px;
+            color: #0a1a2f;
+            font-weight: bold;
+            cursor: pointer;
+            float: right;
+        }
+
+        /* 传感器列表 */
+        .sensor-item {
+            padding: 10px 12px;
+            background: #1a3a5f;
+            border: 1px solid #2a4a6f;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sensor-name {
+            color: #c9d1d9;
+        }
+
+        .sensor-status {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .status-normal {
+            background: #2ecc71;
+            color: #fff;
+        }
+
+        .status-alarm {
+            background: #e74c3c;
+            color: #fff;
+        }
+
+        .status-warning {
+            background: #f39c12;
+            color: #fff;
+        }
+
+        /* 表格 */
+        .table-container table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-container th,
+        .table-container td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #2a4a6f;
+            font-size: 14px;
+        }
+
+        .table-container th {
+            background: #2a4a6f;
+            color: #4fc3f7;
+        }
+
+        /* 图纸弹窗 */
+        .drawing-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .drawing-modal.active {
+            display: flex;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: #1a3a5f;
+            border-bottom: 1px solid #2a4a6f;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .modal-content {
+            background: #0a1a2f;
+            border-radius: 8px;
+            overflow: hidden;
+            max-width: 90%;
+            max-height: 90%;
+        }
+
+        .modal-content img {
+            max-width: 100%;
+            max-height: 70vh;
+            display: block;
+        }
+
+        .modal-nav {
+            display: flex;
+            justify-content: space-between;
+            padding: 16px;
+        }
+
+        .nav-btn {
+            padding: 8px 24px;
+            background: #2a4a6f;
+            border: 1px solid #4fc3f7;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a3a5f;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4fc3f7;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="top-header">
+        <div class="nav-tabs">
+            <button class="tab-btn active" data-tab="bridge-health">桥梁健康</button>
+            <button class="tab-btn" data-tab="bim-info">BIM信息</button>
+            <button class="tab-btn" data-tab="sensor-status">传感器状态</button>
+        </div>
+        <div class="env-info">
+            <span class="time" id="current-time">11/29 | 12:01:13</span>
+            <span class="env-item">☀️ PM2.5 <span class="env-value">34</span></span>
+            <span class="env-item">PM10 <span class="env-value">101</span></span>
+            <span class="env-item">CO₂ <span class="env-value">20</span></span>
+            <span class="env-item">风向 <span class="env-value">N-3</span></span>
+            <span class="env-item">气压 <span class="env-value">1001</span></span>
+            <span class="env-item">噪音 <span class="env-value">36</span></span>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <!-- 3D桥梁可视化区域 -->
+        <div class="bridge-3d-container" id="bridge-3d">
+            <div class="loading-mask">3D桥梁模型加载中...</div>
+        </div>
+
+        <!-- 左侧面板 -->
+        <div class="left-panel" id="left-panel">
+            <!-- 桥梁健康面板 -->
+            <div class="panel-content active" id="bridge-health-panel">
+                <div class="panel-section">
+                    <h3 class="section-title">工程信息</h3>
+                    <div class="info-list">
+                        <p><span>建设单位：</span>XX通道管理中心</p>
+                        <p><span>设计单位：</span>XX勘察设计集团有限公司</p>
+                        <p><span>施工单位：</span>XXXX局</p>
+                        <p><span>所在区域：</span>XX省 XX市 XX区</p>
+                        <p><span>桥梁总长：</span>24千米</p>
+                        <p><span>桥梁总宽：</span>46-70米</p>
+                        <p><span>结构类型：</span>斜拉桥</p>
+                        <p><span>功能类型：</span>跨海</p>
+                        <p><span>荷载等级：</span>公路I级</p>
+                        <p><span>养护等级：</span>I级</p>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 class="section-title">桥梁状态图</h3>
+                    <div class="radar-chart-container" id="radar-chart"></div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 class="section-title">异常报警分析</h3>
+                    <div class="line-chart-container" id="alarm-chart"></div>
+                </div>
+            </div>
+
+            <!-- BIM信息面板 -->
+            <div class="panel-content" id="bim-info-panel">
+                <div class="search-box">
+                    <input type="text" placeholder="请输入构件名称">
+                    <button class="search-btn">🔍</button>
+                </div>
+                <div class="component-tree" id="component-tree"></div>
+                <div class="component-detail" id="component-detail">
+                    <div class="detail-header">
+                        <h4>构件详情</h4>
+                        <button class="close-detail">×</button>
+                    </div>
+                    <div class="detail-content" id="detail-content"></div>
+                    <button class="view-drawing-btn">查看图纸</button>
+                </div>
+            </div>
+
+            <!-- 传感器状态面板 -->
+            <div class="panel-content" id="sensor-status-panel">
+                <div class="search-box">
+                    <input type="text" placeholder="请输入设备名称">
+                    <button class="search-btn">🔍</button>
+                </div>
+                <div class="sensor-list" id="sensor-list"></div>
+            </div>
+        </div>
+
+        <!-- 右侧面板 -->
+        <div class="right-panel" id="right-panel">
+            <div class="panel-content active" id="bridge-health-right">
+                <div class="panel-section">
+                    <h3 class="section-title">传感器状态图</h3>
+                    <div class="triangle-chart-container" id="triangle-chart"></div>
+                </div>
+                <div class="panel-section">
+                    <h3 class="section-title">传感器数量统计</h3>
+                    <div class="bar-chart-container" id="sensor-bar-chart"></div>
+                </div>
+            </div>
+
+            <div class="panel-content" id="bim-info-right">
+                <div class="panel-section">
+                    <h3 class="section-title">管桩数据</h3>
+                    <div class="table-container">
+                        <table>
+                            <tr><th>序号</th><th>管桩编号</th><th>设计桩长</th><th>顶桩高程</th></tr>
+                            <tr><td>1</td><td>ZK66+622W</td><td>7.5</td><td>4.69</td></tr>
+                            <tr><td>2</td><td>ZK66+628W</td><td>7.5</td><td>4.86</td></tr>
+                            <tr><td>3</td><td>ZK66+634W</td><td>7.5</td><td>4.89</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <h3 class="section-title">地质数据</h3>
+                    <div class="table-container">
+                        <table>
+                            <tr><th>地质</th><th>钻孔编号</th><th>高程(M)</th><th>土层序号</th></tr>
+                            <tr><td>黏性土流塑</td><td>ZZK1</td><td>1.38</td><td>1</td></tr>
+                            <tr><td>黏性土硬可塑</td><td>ZZK2</td><td>-1.52</td><td>2</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-content" id="sensor-status-right">
+                <div class="panel-section">
+                    <h3 class="section-title">传感器实时数据</h3>
+                    <div class="sensor-chart-container" id="sensor-line-chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图纸弹窗 -->
+        <div class="drawing-modal" id="drawing-modal">
+            <div class="modal-header">
+                <h3>构件图纸</h3>
+                <button class="close-modal">×</button>
+            </div>
+            <div class="modal-content">
+                <img src="https://picsum.photos/800/600" alt="构件图纸">
+                <div class="modal-nav">
+                    <button class="nav-btn prev-btn">上一页</button>
+                    <button class="nav-btn next-btn">下一页</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 全局变量
+        let echartsInstances = {};
+
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', () => {
+            initTime();
+            initTabs();
+            initCharts();
+            initComponentTree();
+            initSensorList();
+            initModalEvents();
+        });
+
+        // 实时时间
+        function initTime() {
+            const timeEl = document.getElementById('current-time');
+            setInterval(() => {
+                const now = new Date();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const h = String(now.getHours()).padStart(2, '0');
+                const m = String(now.getMinutes()).padStart(2, '0');
+                const s = String(now.getSeconds()).padStart(2, '0');
+                timeEl.textContent = `${month}/${day} | ${h}:${m}:${s}`;
+            }, 1000);
+        }
+
+        // 标签页切换
+        function initTabs() {
+            const btns = document.querySelectorAll('.tab-btn');
+            btns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    btns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const tab = btn.dataset.tab;
+
+                    document.querySelectorAll('.left-panel .panel-content').forEach(p => {
+                        p.classList.remove('active');
+                        if (p.id === tab + '-panel') p.classList.add('active');
+                    });
+                    document.querySelectorAll('.right-panel .panel-content').forEach(p => {
+                        p.classList.remove('active');
+                        if (p.id === tab + '-right') p.classList.add('active');
+                    });
+
+                    Object.values(echartsInstances).forEach(c => c.resize());
+                });
+            });
+        }
+
+        // 初始化所有图表
+        function initCharts() {
+            // 雷达图
+            const radar = echarts.init(document.getElementById('radar-chart'));
+            radar.setOption({
+                backgroundColor:'transparent',
+                radar:{indicator:[
+                    {name:'主缆线变形',max:100},{name:'桥墩倾斜',max:100},
+                    {name:'斜拉索索力',max:100},{name:'风振参数',max:100},
+                    {name:'结构环境',max:100},{name:'地震动',max:100},
+                    {name:'应力拉索',max:100},{name:'车辆荷载',max:100}
+                ]},
+                series:[{type:'radar',data:[{value:[85,90,88,92,86,95,89,91]}]}]
+            });
+            echartsInstances.radar = radar;
+
+            // 报警折线图
+            const alarm = echarts.init(document.getElementById('alarm-chart'));
+            alarm.setOption({
+                backgroundColor:'transparent',
+                xAxis:{data:['A','B','C','D','E','F','G','H']},
+                yAxis:{type:'value'},
+                series:[{type:'line',data:[45,20,5,80,20,45,90,70]}]
+            });
+            echartsInstances.alarm = alarm;
+
+            // 三角图
+            const triangle = echarts.init(document.getElementById('triangle-chart'));
+            triangle.setOption({
+                backgroundColor:'transparent',
+                radar:{shape:'triangle',indicator:[
+                    {name:'使用流量',max:100},{name:'信号强度',max:100},{name:'传感器状态',max:100}
+                ]},
+                series:[{type:'radar',data:[{value:[95,90,98]}]}]
+            });
+            echartsInstances.triangle = triangle;
+
+            // 柱状图
+            const bar = echarts.init(document.getElementById('sensor-bar-chart'));
+            bar.setOption({
+                backgroundColor:'transparent',
+                yAxis:{data:['静力水准仪','倾角传感器','振弦式应变传感器','P12H型索力传感器','车辆荷载传感器','风速传感器','地震动传感器']},
+                xAxis:{type:'value'},
+                series:[{type:'bar',data:[28,22,25,18,26,12,30]}]
+            });
+            echartsInstances.bar = bar;
+
+            // 实时数据折线图
+            const line = echarts.init(document.getElementById('sensor-line-chart'));
+            line.setOption({
+                backgroundColor:'transparent',
+                xAxis:{data:['10:28','10:44','11:00','11:16']},
+                yAxis:{type:'value'},
+                series:[{type:'line',data:[1.8,3.2,0.5,1.2]}]
+            });
+            echartsInstances.line = line;
+        }
+
+        // 构件树
+        function initComponentTree() {
+            const tree = document.getElementById('component-tree');
+            tree.innerHTML = `
+                <div class="tree-item">东索桥</div>
+                <div class="tree-item" style="margin-left:20px">上横梁</div>
+                <div class="tree-item" style="margin-left:20px">中横梁</div>
+                <div class="tree-item" style="margin-left:20px">下横梁</div>
+                <div class="tree-item">西索桥</div>
+                <div class="tree-item">主梁</div>
+                <div class="tree-item">缆索</div>
+            `;
+
+            tree.querySelectorAll('.tree-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    document.getElementById('component-detail').style.display = 'block';
+                });
+            });
+
+            document.querySelector('.close-detail').onclick = () => {
+                document.getElementById('component-detail').style.display = 'none';
+            };
+        }
+
+        // 传感器列表
+        function initSensorList() {
+            const list = document.getElementById('sensor-list');
+            list.innerHTML = `
+                <div class="sensor-item"><span>静力水准仪</span><span class="sensor-status status-alarm">报警</span></div>
+                <div class="sensor-item"><span>倾角计传感器</span><span class="sensor-status status-normal">正常</span></div>
+                <div class="sensor-item"><span>振弦式应变传感器</span><span class="sensor-status status-alarm">报警</span></div>
+                <div class="sensor-item"><span>P12H型索力传感器</span><span class="sensor-status status-normal">正常</span></div>
+                <div class="sensor-item"><span>风速传感器</span><span class="sensor-status status-warning">预警</span></div>
+            `;
+        }
+
+        // 弹窗
+        function initModalEvents() {
+            const modal = document.getElementById('drawing-modal');
+            document.querySelector('.view-drawing-btn').onclick = () => modal.classList.add('active');
+            document.querySelector('.close-modal').onclick = () => modal.classList.remove('active');
+            modal.onclick = e => e.target === modal && modal.classList.remove('active');
+        }
+    </script>
+</body>
+</html>
